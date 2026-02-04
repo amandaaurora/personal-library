@@ -1,9 +1,6 @@
 import os
 from typing import Optional
 
-import chromadb
-from chromadb.config import Settings
-
 from ..config import get_settings
 from ..models.book import Book
 from .embedding_service import get_embedding_service
@@ -23,7 +20,18 @@ class VectorStore:
         return cls._instance
 
     def __init__(self):
+        # Lazy load - don't initialize chromadb here
+        pass
+
+    def _ensure_initialized(self):
+        """Lazy initialize ChromaDB client and collection."""
         if VectorStore._client is None:
+            if os.environ.get("DISABLE_EMBEDDINGS") == "true":
+                raise RuntimeError("Embeddings are disabled. Set DISABLE_EMBEDDINGS=false to enable.")
+
+            import chromadb
+            from chromadb.config import Settings
+
             settings = get_settings()
             persist_path = settings.CHROMA_PERSIST_PATH
 
@@ -41,6 +49,7 @@ class VectorStore:
 
     @property
     def collection(self):
+        self._ensure_initialized()
         return VectorStore._collection
 
     def add_book(

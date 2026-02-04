@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import { BookOpen, Search, Upload, LayoutDashboard, Settings } from 'lucide-react';
+import { BookOpen, Search, Upload, LayoutDashboard, Settings, Copy } from 'lucide-react';
 
 export default function RootLayout({
   children,
@@ -28,6 +28,7 @@ export default function RootLayout({
     { href: '/books/add', icon: BookOpen, label: 'Add Book' },
     { href: '/search', icon: Search, label: 'AI Search' },
     { href: '/import', icon: Upload, label: 'Import' },
+    { href: '/duplicates', icon: Copy, label: 'Duplicates' },
   ];
 
   return (

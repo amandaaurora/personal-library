@@ -11,8 +11,9 @@ import {
   Calendar,
   Star,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
-import { getBook, deleteBook } from '@/lib/api';
+import { getBook, deleteBook, categorizeBook } from '@/lib/api';
 
 const statusConfig: Record<string, { label: string }> = {
   unread: { label: 'To Read' },
@@ -42,10 +43,22 @@ export default function BookDetailPage() {
     },
   });
 
+  const categorizeMutation = useMutation({
+    mutationFn: () => categorizeBook(bookId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['book', bookId] });
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+    },
+  });
+
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this book?')) {
       deleteMutation.mutate();
     }
+  };
+
+  const handleCategorize = () => {
+    categorizeMutation.mutate();
   };
 
   if (isLoading) {
@@ -158,38 +171,62 @@ export default function BookDetailPage() {
             </div>
 
             {/* Categories & Moods */}
-            {(book.categories.length > 0 || book.moods.length > 0) && (
-              <div className="mb-6">
-                {book.categories.length > 0 && (
-                  <div className="mb-3">
-                    <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#999' }}>
-                      Categories
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {book.categories.map((cat) => (
-                        <span key={cat} className="badge badge-category">
-                          {cat}
-                        </span>
-                      ))}
-                    </div>
+            <div className="mb-6">
+              {book.categories.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#999' }}>
+                    Categories
                   </div>
-                )}
-                {book.moods.length > 0 && (
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#999' }}>
-                      Moods
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {book.moods.map((mood) => (
-                        <span key={mood} className="badge badge-mood">
-                          {mood}
-                        </span>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    {book.categories.map((cat) => (
+                      <span key={cat} className="badge badge-category">
+                        {cat}
+                      </span>
+                    ))}
                   </div>
+                </div>
+              )}
+              {book.moods.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#999' }}>
+                    Moods
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {book.moods.map((mood) => (
+                      <span key={mood} className="badge badge-mood">
+                        {mood}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* AI Categorize Button */}
+              <button
+                onClick={handleCategorize}
+                disabled={categorizeMutation.isPending}
+                className="btn text-sm mt-2"
+                style={{ backgroundColor: '#ede9fe', borderColor: '#1a1a1a', color: '#7c3aed' }}
+              >
+                {categorizeMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Categorizing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {book.categories.length > 0 || book.moods.length > 0
+                      ? 'Re-categorize with AI'
+                      : 'Categorize with AI'}
+                  </>
                 )}
-              </div>
-            )}
+              </button>
+              {categorizeMutation.isError && (
+                <p className="text-xs mt-2" style={{ color: '#dc2626' }}>
+                  {categorizeMutation.error?.message || 'Failed to categorize'}
+                </p>
+              )}
+            </div>
 
             {/* Dates */}
             {(book.purchase_date || book.date_started || book.date_finished) && (

@@ -217,6 +217,20 @@ body {
     background-color: var(--text-primary);
     border-radius: 2px;
   }
+
+  /* Book list item - neo-brutalist style */
+  .book-list-item {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .book-list-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 4px 4px 0 var(--border);
+    background-color: var(--bg-card);
+  }
 }
 
 /* Typography */
@@ -258,6 +272,17 @@ a {
   text-decoration: none;
 }
 
-a:hover:not(.card) {
+/* Only underline regular text links, not cards */
+a:hover {
   text-decoration: underline;
+}
+
+/* Disable underline for card-style links */
+a.card:hover,
+a.book-card:hover,
+a.book-list-item:hover,
+a.card:hover *,
+a.book-card:hover *,
+a.book-list-item:hover * {
+  text-decoration: none !important;
 }

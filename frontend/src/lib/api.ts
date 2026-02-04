@@ -7,6 +7,7 @@ import type {
   Config,
   ImportResult,
   BookFilters,
+  DuplicatesResponse,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -83,8 +84,29 @@ export async function deleteBook(id: number): Promise<void> {
   await fetch(`${API_URL}/books/${id}`, { method: 'DELETE' });
 }
 
+export async function bulkUpdateBooks(
+  ids: number[],
+  update: BookUpdate
+): Promise<void> {
+  await Promise.all(ids.map((id) => updateBook(id, update)));
+}
+
+export async function bulkDeleteBooks(ids: number[]): Promise<void> {
+  await Promise.all(ids.map((id) => deleteBook(id)));
+}
+
 export async function lookupBook(isbn: string): Promise<BookLookup> {
   return fetchApi<BookLookup>(`/books/lookup?isbn=${encodeURIComponent(isbn)}`);
+}
+
+export async function getDuplicates(): Promise<DuplicatesResponse> {
+  return fetchApi<DuplicatesResponse>('/books/duplicates');
+}
+
+export async function categorizeBook(id: number): Promise<Book> {
+  return fetchApi<Book>(`/books/${id}/categorize`, {
+    method: 'POST',
+  });
 }
 
 // Search

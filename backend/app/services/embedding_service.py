@@ -1,6 +1,5 @@
+import os
 from functools import lru_cache
-
-from sentence_transformers import SentenceTransformer
 
 
 class EmbeddingService:
@@ -16,11 +15,17 @@ class EmbeddingService:
         return cls._instance
 
     def __init__(self):
-        if EmbeddingService._model is None:
-            EmbeddingService._model = SentenceTransformer(self.MODEL_NAME)
+        # Lazy load - don't initialize model here
+        pass
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self):
+        """Lazy load the sentence transformer model."""
+        if EmbeddingService._model is None:
+            if os.environ.get("DISABLE_EMBEDDINGS") == "true":
+                raise RuntimeError("Embeddings are disabled. Set DISABLE_EMBEDDINGS=false to enable.")
+            from sentence_transformers import SentenceTransformer
+            EmbeddingService._model = SentenceTransformer(self.MODEL_NAME)
         return EmbeddingService._model
 
     def embed_text(self, text: str) -> list[float]:

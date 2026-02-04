@@ -1,13 +1,29 @@
 import logging
+import re
 from datetime import datetime
 from typing import Optional
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from ..database import get_session
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_name(name: str) -> str:
+    """Normalize a name for comparison by removing punctuation and extra spaces."""
+    if not name:
+        return ""
+    # Lowercase
+    name = name.lower()
+    # Remove punctuation
+    name = re.sub(r'[^\w\s]', '', name)
+    # Normalize whitespace
+    name = ' '.join(name.split())
+    return name
 from ..models.book import (
     Book,
     BookCategory,
@@ -52,7 +68,7 @@ def book_to_read(book: Book) -> BookRead:
 def list_books(
     session: Session = Depends(get_session),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(10000, ge=1, le=10000),
     category: Optional[str] = None,
     mood: Optional[str] = None,
     format: Optional[str] = None,
@@ -86,6 +102,75 @@ def list_books(
     books = session.exec(query).unique().all()
 
     return [book_to_read(book) for book in books]
+
+
+class DuplicateGroup(BaseModel):
+    """A group of duplicate books."""
+    key: str
+    books: list[BookRead]
+
+
+class DuplicatesResponse(BaseModel):
+    """Response containing duplicate book groups."""
+    duplicate_groups: list[DuplicateGroup]
+    total_duplicates: int
+
+
+@router.get("/duplicates", response_model=DuplicatesResponse)
+def find_duplicates(session: Session = Depends(get_session)):
+    """Find duplicate books based on normalized title+author or ISBN."""
+    books = session.exec(select(Book)).unique().all()
+
+    # Group by normalized title+author
+    title_author_groups: dict[str, list[Book]] = defaultdict(list)
+    # Group by ISBN
+    isbn_groups: dict[str, list[Book]] = defaultdict(list)
+
+    for book in books:
+        # Title + Author grouping
+        key = f"{normalize_name(book.title)}|{normalize_name(book.author)}"
+        title_author_groups[key].append(book)
+
+        # ISBN grouping (if ISBN exists)
+        if book.isbn:
+            # Normalize ISBN (remove hyphens and spaces)
+            normalized_isbn = re.sub(r'[\s-]', '', book.isbn)
+            if normalized_isbn:
+                isbn_groups[normalized_isbn].append(book)
+
+    # Collect duplicate groups (more than 1 book)
+    seen_book_ids: set[int] = set()
+    duplicate_groups: list[DuplicateGroup] = []
+
+    # First, add ISBN-based duplicates (higher confidence)
+    for isbn, group_books in isbn_groups.items():
+        if len(group_books) > 1:
+            book_ids = {b.id for b in group_books}
+            if not book_ids.issubset(seen_book_ids):
+                duplicate_groups.append(DuplicateGroup(
+                    key=f"ISBN: {isbn}",
+                    books=[book_to_read(b) for b in group_books]
+                ))
+                seen_book_ids.update(book_ids)
+
+    # Then, add title+author duplicates (not already found by ISBN)
+    for key, group_books in title_author_groups.items():
+        if len(group_books) > 1:
+            # Filter out books already in an ISBN group
+            remaining_books = [b for b in group_books if b.id not in seen_book_ids]
+            if len(remaining_books) > 1:
+                duplicate_groups.append(DuplicateGroup(
+                    key=f"Title+Author: {key}",
+                    books=[book_to_read(b) for b in remaining_books]
+                ))
+                seen_book_ids.update(b.id for b in remaining_books)
+
+    total_duplicates = sum(len(g.books) - 1 for g in duplicate_groups)
+
+    return DuplicatesResponse(
+        duplicate_groups=duplicate_groups,
+        total_duplicates=total_duplicates
+    )
 
 
 @router.get("/lookup", response_model=BookLookupResult)
@@ -138,8 +223,11 @@ async def create_book(
     categories = book_data.categories
     moods = book_data.moods
 
+    logger.info(f"Creating book '{book.title}': auto_categorize={auto_categorize}, categories={categories}, moods={moods}")
+
     # Auto-categorize if enabled and no categories/moods provided
     if auto_categorize and not categories and not moods:
+        logger.info(f"Auto-categorizing book '{book.title}'...")
         try:
             categorization = CategorizationService()
             suggestions = await categorization.categorize_book(
@@ -147,8 +235,11 @@ async def create_book(
             )
             categories = suggestions.get("categories", [])
             moods = suggestions.get("moods", [])
+            logger.info(f"Auto-categorization result: categories={categories}, moods={moods}")
         except Exception:
             logger.warning(f"Auto-categorization failed for book '{book.title}'", exc_info=True)
+    else:
+        logger.info(f"Skipping auto-categorization: auto_categorize={auto_categorize}, has_categories={bool(categories)}, has_moods={bool(moods)}")
 
     # Add categories
     for cat in categories:
@@ -227,6 +318,62 @@ def update_book(
         logger.warning(f"Failed to update book {book.id} in vector store", exc_info=True)
 
     return book_to_read(book)
+
+
+@router.post("/{book_id}/categorize", response_model=BookRead)
+async def categorize_book(book_id: int, session: Session = Depends(get_session)):
+    """Auto-categorize a book using AI."""
+    book = session.get(Book, book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    logger.info(f"Categorizing book '{book.title}' via API...")
+    try:
+        categorization = CategorizationService()
+        suggestions = await categorization.categorize_book(
+            book.title, book.author, book.description or ""
+        )
+        categories = suggestions.get("categories", [])
+        moods = suggestions.get("moods", [])
+        logger.info(f"Categorization result: categories={categories}, moods={moods}")
+
+        if not categories and not moods:
+            raise HTTPException(status_code=500, detail="AI categorization returned no results")
+
+        # Delete existing categories and moods
+        for cat in book.categories:
+            session.delete(cat)
+        for mood in book.moods:
+            session.delete(mood)
+
+        # Add new categories
+        for cat in categories:
+            book_cat = BookCategory(book_id=book.id, category=cat)
+            session.add(book_cat)
+
+        # Add new moods
+        for mood in moods:
+            book_mood = BookMood(book_id=book.id, mood=mood)
+            session.add(book_mood)
+
+        book.updated_at = datetime.utcnow()
+        session.commit()
+        session.refresh(book)
+
+        # Update vector store
+        try:
+            vector_store = VectorStore()
+            vector_store.update_book(book, categories, moods)
+        except Exception:
+            logger.warning(f"Failed to update book {book.id} in vector store", exc_info=True)
+
+        return book_to_read(book)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Categorization failed for book {book_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Categorization failed: {str(e)}")
 
 
 @router.delete("/{book_id}", status_code=204)

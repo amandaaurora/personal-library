@@ -18,7 +18,7 @@ class OpenLibraryService:
         # Clean up ISBN
         isbn = isbn.replace("-", "").replace(" ", "")
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             # Try the books API first
             url = f"{self.BASE_URL}/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
             response = await client.get(url)
@@ -88,7 +88,7 @@ class OpenLibraryService:
 
     async def search_books(self, query: str, limit: int = 10) -> list[dict]:
         """Search for books by title/author."""
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             url = f"{self.BASE_URL}/search.json?q={query}&limit={limit}"
             response = await client.get(url)
 

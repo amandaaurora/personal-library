@@ -3,8 +3,10 @@ services:
   - type: web
     name: personal-library-api
     runtime: python
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120
+    autoDeploy: true
     envVars:
       - key: DATABASE_URL
         sync: false  # Set manually in Render dashboard
@@ -14,5 +16,7 @@ services:
         value: /tmp/chroma_data
       - key: CORS_ORIGINS
         sync: false  # Set to your Vercel frontend URL
+      - key: DISABLE_EMBEDDINGS
+        value: "true"  # Skip heavy sentence-transformers loading on free tier
     healthCheckPath: /api/health
     plan: free

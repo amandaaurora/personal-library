@@ -1,19 +1,25 @@
 import json
+import logging
 from typing import Optional
 
 from groq import Groq
 
 from ..config import get_settings
 
+logger = logging.getLogger(__name__)
+
 
 class CategorizationService:
     """Service for auto-categorizing books using Groq LLM."""
 
-    MODEL = "llama-3.3-70b-versatile"
+    MODEL = "llama-3.1-8b-instant"
 
     def __init__(self):
         settings = get_settings()
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
+        api_key = settings.GROQ_API_KEY
+        if not api_key:
+            logger.warning("GROQ_API_KEY is not set - categorization will not work")
+        self.client = Groq(api_key=api_key) if api_key else None
         self.valid_categories = settings.CATEGORIES
         self.valid_moods = settings.MOODS
 
@@ -48,7 +54,12 @@ Description: {description or 'Not provided'}
 
 Categorize this book."""
 
+        if not self.client:
+            logger.warning("Groq client not initialized - skipping categorization")
+            return {"categories": [], "moods": []}
+
         try:
+            logger.info(f"Categorizing book: {title} by {author}")
             response = self.client.chat.completions.create(
                 model=self.MODEL,
                 messages=[
@@ -60,6 +71,7 @@ Categorize this book."""
             )
 
             content = response.choices[0].message.content.strip()
+            logger.debug(f"Groq response: {content}")
 
             # Try to parse JSON from response
             # Handle potential markdown code blocks
@@ -77,11 +89,13 @@ Categorize this book."""
             ]
             moods = [m for m in result.get("moods", []) if m in self.valid_moods]
 
+            logger.info(f"Categorization result: categories={categories}, moods={moods}")
             return {
                 "categories": categories[:3],  # Max 3
                 "moods": moods[:3],  # Max 3
             }
 
-        except Exception:
+        except Exception as e:
+            logger.error(f"Categorization failed for '{title}': {e}", exc_info=True)
             # Return empty suggestions on error
             return {"categories": [], "moods": []}

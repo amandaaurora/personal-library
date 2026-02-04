@@ -104,3 +104,13 @@ export interface BookFilters {
   reading_status?: string;
   search?: string;
 }
+
+export interface DuplicateGroup {
+  key: string;
+  books: Book[];
+}
+
+export interface DuplicatesResponse {
+  duplicate_groups: DuplicateGroup[];
+  total_duplicates: number;
+}
