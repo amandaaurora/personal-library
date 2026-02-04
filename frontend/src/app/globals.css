@@ -1,0 +1,263 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Neo-brutalist minimalist palette */
+  --bg-sidebar: #ffffff;
+  --bg-content: #faf6fc;
+  --bg-card: #fefffe;
+  --border: #1a1a1a;
+  --border-light: #e5e5e5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+
+  /* Pastel accents for card backgrounds */
+  --pastel-yellow: #fff8e1;
+  --pastel-pink: #fce4ec;
+  --pastel-mint: #e8f5e9;
+  --pastel-blue: #e3f2fd;
+  --pastel-lavender: #ede7f6;
+  --pastel-peach: #fff3e0;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-content);
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+@layer components {
+  /* Cards - clean white with thin black border */
+  .card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full px-3 py-2.5 text-sm;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    transition: box-shadow 0.15s ease;
+  }
+
+  .input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.1);
+  }
+
+  .input::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Labels */
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wide mb-1.5;
+    color: var(--text-secondary);
+  }
+
+  /* Buttons - minimal brutalist */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold transition-all;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  .btn:hover:not(:disabled) {
+    background-color: var(--text-primary);
+    color: var(--bg-card);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background-color: var(--text-primary);
+    color: var(--bg-card);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: #333;
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  .btn-danger {
+    background-color: var(--bg-card);
+    color: #dc2626;
+    border-color: #dc2626;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background-color: #dc2626;
+    color: white;
+  }
+
+  /* Badges - minimal */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background-color: var(--bg-card);
+  }
+
+  .badge-category {
+    background-color: var(--pastel-mint);
+    border-color: var(--border);
+  }
+
+  .badge-mood {
+    background-color: var(--pastel-lavender);
+    border-color: var(--border);
+  }
+
+  .badge-format {
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  /* Stat card */
+  .stat-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+
+  .stat-card .stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .stat-card .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-top: 0.25rem;
+  }
+
+  /* Sidebar */
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .sidebar-item:hover {
+    background-color: var(--bg-content);
+    color: var(--text-primary);
+  }
+
+  .sidebar-item.active {
+    background-color: var(--bg-content);
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* Book card */
+  .book-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .book-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 4px 4px 0 var(--border);
+  }
+
+  .book-card .book-image {
+    position: relative;
+    padding-top: 55%;
+    overflow: hidden;
+  }
+
+  .book-card .book-content {
+    padding: 0.875rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .book-card .progress-bar {
+    height: 3px;
+    background-color: var(--border-light);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .book-card .progress-fill {
+    height: 100%;
+    background-color: var(--text-primary);
+    border-radius: 2px;
+  }
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+}
+
+/* Scrollbar - minimal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Select styling */
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%231a1a1a' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.5rem;
+}
+
+/* Link styling */
+a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+a:hover:not(.card) {
+  text-decoration: underline;
+}
