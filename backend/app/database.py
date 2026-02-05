@@ -39,6 +39,19 @@ def create_db_and_tables():
 
     SQLModel.metadata.create_all(engine)
 
+    # Add embedding column if it doesn't exist (SQLModel doesn't handle pgvector columns)
+    if db_url.startswith("postgresql"):
+        with Session(engine) as session:
+            try:
+                session.exec(text("""
+                    ALTER TABLE books
+                    ADD COLUMN IF NOT EXISTS embedding vector(384)
+                """))
+                session.commit()
+                logger.info("Embedding column ensured")
+            except Exception as e:
+                logger.warning(f"Could not add embedding column: {e}")
+
 
 def get_session():
     with Session(engine) as session:

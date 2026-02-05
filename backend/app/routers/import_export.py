@@ -356,11 +356,14 @@ async def import_csv(
             session.commit()
             session.refresh(book)
 
-            # Add to vector store
+            # Generate and store embedding
             try:
-                vector_store.add_book(book, categories, moods)
+                embedding = vector_store.add_book(book, categories, moods)
+                if embedding:
+                    book.embedding = embedding
+                    session.commit()
             except Exception:
-                logger.warning(f"Failed to add imported book {book.id} to vector store", exc_info=True)
+                logger.warning(f"Failed to generate embedding for imported book {book.id}", exc_info=True)
 
             imported.append(book_to_read(book))
 
