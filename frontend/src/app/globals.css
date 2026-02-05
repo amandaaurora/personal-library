@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Sora Font */
+@font-face {
+  font-family: 'Sora';
+  src: url('/Sora-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 800;
+  font-display: swap;
+  font-style: normal;
+}
+
 :root {
   /* Neo-brutalist minimalist palette */
   --bg-sidebar: #ffffff;
@@ -13,7 +22,14 @@
   --text-secondary: #666666;
   --text-muted: #999999;
 
-  /* Pastel accents for card backgrounds */
+  /* Status-based pastel colors */
+  --status-completed: #d4edda;  /* pastel green */
+  --status-reading: #cce5ff;    /* pastel blue */
+  --status-unread: #fff3cd;     /* pastel yellow */
+  --status-dnf: #f8d7da;        /* pastel red/pink */
+  --status-all: #e2d9f3;        /* pastel purple */
+
+  /* Legacy pastel accents (kept for badges) */
   --pastel-yellow: #fff8e1;
   --pastel-pink: #fce4ec;
   --pastel-mint: #e8f5e9;
@@ -31,7 +47,7 @@
 html,
 body {
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--bg-content);
   color: var(--text-primary);
   font-weight: 400;
@@ -138,13 +154,29 @@ body {
     border-color: var(--border);
   }
 
-  /* Stat card */
+  /* Stat card - clickable filter */
   .stat-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1rem 1.25rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 4px 4px 0 var(--border);
+  }
+
+  .stat-card.active {
+    box-shadow: 4px 4px 0 var(--border);
+  }
+
+  .stat-card.stat-all { background-color: var(--status-all); }
+  .stat-card.stat-reading { background-color: var(--status-reading); }
+  .stat-card.stat-completed { background-color: var(--status-completed); }
+  .stat-card.stat-unread { background-color: var(--status-unread); }
 
   .stat-card .stat-label {
     font-size: 0.7rem;
@@ -198,12 +230,19 @@ body {
     position: relative;
     padding-top: 55%;
     overflow: hidden;
+    background-color: #f5f5f5;
   }
 
   .book-card .book-content {
     padding: 0.875rem;
     border-top: 1px solid var(--border);
   }
+
+  /* Status-based badge colors */
+  .badge-status-completed { background-color: var(--status-completed); }
+  .badge-status-reading { background-color: var(--status-reading); }
+  .badge-status-unread { background-color: var(--status-unread); }
+  .badge-status-dnf { background-color: var(--status-dnf); }
 
   .book-card .progress-bar {
     height: 3px;

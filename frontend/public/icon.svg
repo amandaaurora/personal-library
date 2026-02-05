@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- White circle background -->
+  <circle cx="256" cy="256" r="256" fill="#ffffff"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#1a1a1a" stroke-width="8"/>
+
+  <!-- Book icon -->
+  <g fill="none" stroke="#1a1a1a" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Book pages -->
+    <path d="M150 140 C150 140 185 120 256 120 C327 120 362 140 362 140 L362 372 C362 372 327 352 256 352 C185 352 150 372 150 372 Z"/>
+    <!-- Center fold -->
+    <path d="M256 120 L256 352"/>
+    <!-- Page lines left -->
+    <path d="M180 180 L230 180" stroke-width="14"/>
+    <path d="M180 220 L220 220" stroke-width="14"/>
+    <path d="M180 260 L235 260" stroke-width="14"/>
+    <!-- Page lines right -->
+    <path d="M282 180 L332 180" stroke-width="14"/>
+    <path d="M292 220 L332 220" stroke-width="14"/>
+    <path d="M282 260 L325 260" stroke-width="14"/>
+  </g>
+</svg>

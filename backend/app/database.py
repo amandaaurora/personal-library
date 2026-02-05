@@ -1,22 +1,28 @@
+import logging
 from sqlmodel import SQLModel, create_engine, Session
 from .config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Handle connection args based on database type
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+db_url = settings.DATABASE_URL
+
+if db_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
-elif settings.DATABASE_URL.startswith("postgresql"):
-    # Railway Postgres requires SSL
-    connect_args["sslmode"] = "require"
+elif db_url.startswith("postgresql"):
+    # Railway Postgres - try different SSL modes
+    connect_args["sslmode"] = "disable"  # Try without SSL first
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    db_url,
     connect_args=connect_args,
     echo=False,
-    pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=300,    # Recycle connections after 5 minutes
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10,
 )
 
 

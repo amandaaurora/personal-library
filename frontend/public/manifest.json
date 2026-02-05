@@ -1,0 +1,17 @@
+{
+  "name": "MyLibrary - Personal Book Collection Manager",
+  "short_name": "MyLibrary",
+  "description": "Organize your personal book collection with AI-powered search, duplicate detection, and smart categorization.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf6fc",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
