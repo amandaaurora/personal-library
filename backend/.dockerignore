@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.git/
+.gitignore
+*.md
+.pytest_cache/
+.coverage
+htmlcov/
+chroma_data/
+*.db
+Procfile
