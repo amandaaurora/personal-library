@@ -4,6 +4,7 @@ import Providers from '@/components/Providers';
 import Sidebar from '@/components/Sidebar';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://personal-library-two.vercel.app'),
   title: {
     default: 'MyLibrary - Personal Book Collection Manager',
     template: '%s | MyLibrary',
@@ -44,7 +45,7 @@ export const metadata: Metadata = {
       'Organize your personal book collection with AI-powered search, duplicate detection, and smart categorization.',
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'MyLibrary - Personal Book Collection Manager',
     description:
       'Organize your personal book collection with AI-powered search, duplicate detection, and smart categorization.',

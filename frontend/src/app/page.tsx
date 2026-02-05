@@ -254,6 +254,94 @@ function EmptyState() {
   );
 }
 
+// Skeleton components for loading states
+function Skeleton({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse bg-gray-200 rounded ${className}`}
+      style={{ backgroundColor: '#e5e5e5' }}
+    />
+  );
+}
+
+function StatCardSkeleton() {
+  return (
+    <div className="stat-card" style={{ backgroundColor: '#f5f5f5' }}>
+      <Skeleton className="h-3 w-16 mb-2" />
+      <Skeleton className="h-8 w-12" />
+    </div>
+  );
+}
+
+function BookCardSkeleton() {
+  return (
+    <div className="book-card">
+      <div className="book-image">
+        <Skeleton className="absolute inset-0" />
+      </div>
+      <div className="book-content">
+        <Skeleton className="h-4 w-3/4 mb-2" />
+        <Skeleton className="h-3 w-1/2 mb-3" />
+        <Skeleton className="h-5 w-16 rounded" />
+      </div>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  const greeting = getGreeting();
+  return (
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a1a1a' }}>
+            {greeting}, Reader!
+          </h1>
+          <Skeleton className="h-4 w-48" />
+        </div>
+      </div>
+
+      {/* Stats Cards Skeleton */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+      </div>
+
+      {/* Books section */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold" style={{ color: '#1a1a1a' }}>
+              Your Books
+            </h2>
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <Skeleton className="h-9 w-24 rounded-lg" />
+        </div>
+
+        {/* Filter bar skeleton */}
+        <div className="card p-4 mb-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Skeleton className="h-9 w-64 rounded-lg" />
+            <Skeleton className="h-9 w-32 rounded-lg" />
+            <Skeleton className="h-9 w-32 rounded-lg" />
+          </div>
+        </div>
+
+        {/* Book cards skeleton */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <BookCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface BulkActionsBarProps {
   selectedCount: number;
   onClearSelection: () => void;
@@ -413,11 +501,7 @@ export default function HomePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#666' }} />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (books.length === 0) {
