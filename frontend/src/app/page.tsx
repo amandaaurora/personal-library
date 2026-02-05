@@ -345,8 +345,8 @@ export default function HomePage() {
   });
 
   // Extract unique categories and moods from all books
-  const allCategories = [...new Set(books.flatMap((b) => b.categories))].sort();
-  const allMoods = [...new Set(books.flatMap((b) => b.moods))].sort();
+  const allCategories = Array.from(new Set(books.flatMap((b) => b.categories))).sort();
+  const allMoods = Array.from(new Set(books.flatMap((b) => b.moods))).sort();
 
   const filteredBooks = books.filter((book) => {
     const matchesStatus = !statusFilter || book.reading_status === statusFilter;
