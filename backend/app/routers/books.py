@@ -251,15 +251,16 @@ async def create_book(
         book_mood = BookMood(book_id=book.id, mood=mood)
         session.add(book_mood)
 
-    session.commit()
-    session.refresh(book)
-
-    # Add to vector store
+    # Generate and store embedding
     try:
         vector_store = VectorStore()
-        vector_store.add_book(book, categories, moods)
+        embedding = vector_store.add_book(book, categories, moods)
+        book.embedding = embedding
     except Exception:
-        logger.warning(f"Failed to add book {book.id} to vector store", exc_info=True)
+        logger.warning(f"Failed to generate embedding for book {book.id}", exc_info=True)
+
+    session.commit()
+    session.refresh(book)
 
     return book_to_read(book)
 
@@ -305,17 +306,18 @@ def update_book(
             book_mood = BookMood(book_id=book.id, mood=mood)
             session.add(book_mood)
 
-    session.commit()
-    session.refresh(book)
-
-    # Update vector store
+    # Update embedding
     try:
         vector_store = VectorStore()
         final_categories = categories if categories is not None else [c.category for c in book.categories]
         final_moods = moods if moods is not None else [m.mood for m in book.moods]
-        vector_store.update_book(book, final_categories, final_moods)
+        embedding = vector_store.update_book(book, final_categories, final_moods)
+        book.embedding = embedding
     except Exception:
-        logger.warning(f"Failed to update book {book.id} in vector store", exc_info=True)
+        logger.warning(f"Failed to update embedding for book {book.id}", exc_info=True)
+
+    session.commit()
+    session.refresh(book)
 
     return book_to_read(book)
 
@@ -357,15 +359,17 @@ async def categorize_book(book_id: int, session: Session = Depends(get_session))
             session.add(book_mood)
 
         book.updated_at = datetime.utcnow()
-        session.commit()
-        session.refresh(book)
 
-        # Update vector store
+        # Update embedding
         try:
             vector_store = VectorStore()
-            vector_store.update_book(book, categories, moods)
+            embedding = vector_store.update_book(book, categories, moods)
+            book.embedding = embedding
         except Exception:
-            logger.warning(f"Failed to update book {book.id} in vector store", exc_info=True)
+            logger.warning(f"Failed to update embedding for book {book.id}", exc_info=True)
+
+        session.commit()
+        session.refresh(book)
 
         return book_to_read(book)
 

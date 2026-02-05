@@ -1,7 +1,12 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Any
 
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import Column
+from pgvector.sqlalchemy import Vector
+
+# Embedding dimension for all-MiniLM-L6-v2 model
+EMBEDDING_DIM = 384
 
 
 # Database Models
@@ -44,6 +49,9 @@ class Book(SQLModel, table=True):
     page_count: Optional[int] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Vector embedding for semantic search (384 dimensions for all-MiniLM-L6-v2)
+    embedding: Optional[Any] = Field(default=None, sa_column=Column(Vector(EMBEDDING_DIM)))
 
     categories: list[BookCategory] = Relationship(
         back_populates="book", sa_relationship_kwargs={"cascade": "all, delete-orphan"}

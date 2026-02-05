@@ -9,7 +9,6 @@ load_dotenv()
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./library.db")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    CHROMA_PERSIST_PATH: str = os.getenv("CHROMA_PERSIST_PATH", "./chroma_data")
 
     # CORS allowed origins (comma-separated list)
     CORS_ORIGINS: list[str] = [

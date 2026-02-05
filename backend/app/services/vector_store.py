@@ -1,18 +1,21 @@
+import logging
 import os
 from typing import Optional
 
-from ..config import get_settings
-from ..models.book import Book
+from sqlmodel import Session, select, text
+from sqlalchemy import func
+
+from ..database import engine
+from ..models.book import Book, EMBEDDING_DIM
 from .embedding_service import get_embedding_service
+
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:
-    """Service for storing and searching book embeddings using ChromaDB."""
+    """Service for storing and searching book embeddings using pgvector."""
 
-    COLLECTION_NAME = "books"
     _instance = None
-    _client = None
-    _collection = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -20,46 +23,19 @@ class VectorStore:
         return cls._instance
 
     def __init__(self):
-        # Lazy load - don't initialize chromadb here
         pass
-
-    def _ensure_initialized(self):
-        """Lazy initialize ChromaDB client and collection."""
-        if VectorStore._client is None:
-            if os.environ.get("DISABLE_EMBEDDINGS") == "true":
-                raise RuntimeError("Embeddings are disabled. Set DISABLE_EMBEDDINGS=false to enable.")
-
-            import chromadb
-            from chromadb.config import Settings
-
-            settings = get_settings()
-            persist_path = settings.CHROMA_PERSIST_PATH
-
-            # Ensure the directory exists
-            os.makedirs(persist_path, exist_ok=True)
-
-            VectorStore._client = chromadb.PersistentClient(
-                path=persist_path,
-                settings=Settings(anonymized_telemetry=False),
-            )
-            VectorStore._collection = VectorStore._client.get_or_create_collection(
-                name=self.COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"},
-            )
-
-    @property
-    def collection(self):
-        self._ensure_initialized()
-        return VectorStore._collection
 
     def add_book(
         self, book: Book, categories: list[str] = None, moods: list[str] = None
-    ):
-        """Add a book to the vector store."""
+    ) -> list[float]:
+        """Generate and store embedding for a book. Returns the embedding."""
+        if os.environ.get("DISABLE_EMBEDDINGS") == "true":
+            return []
+
         embedding_service = get_embedding_service()
 
         # Create searchable text
-        text = embedding_service.create_book_text(
+        text_content = embedding_service.create_book_text(
             title=book.title,
             author=book.author,
             description=book.description or "",
@@ -68,39 +44,18 @@ class VectorStore:
         )
 
         # Generate embedding
-        embedding = embedding_service.embed_text(text)
-
-        # Store in ChromaDB
-        self.collection.add(
-            ids=[str(book.id)],
-            embeddings=[embedding],
-            metadatas=[
-                {
-                    "title": book.title,
-                    "author": book.author,
-                    "format": book.format,
-                    "reading_status": book.reading_status,
-                    "categories": ",".join(categories or []),
-                    "moods": ",".join(moods or []),
-                }
-            ],
-            documents=[text],
-        )
+        embedding = embedding_service.embed_text(text_content)
+        return embedding
 
     def update_book(
         self, book: Book, categories: list[str] = None, moods: list[str] = None
-    ):
-        """Update a book in the vector store."""
-        # Delete existing and re-add
-        self.delete_book(book.id)
-        self.add_book(book, categories, moods)
+    ) -> list[float]:
+        """Update embedding for a book. Returns the new embedding."""
+        return self.add_book(book, categories, moods)
 
     def delete_book(self, book_id: int):
-        """Delete a book from the vector store."""
-        try:
-            self.collection.delete(ids=[str(book_id)])
-        except Exception:
-            pass  # Book may not exist in vector store
+        """No-op for pgvector - embedding is deleted with the book row."""
+        pass
 
     def search(
         self,
@@ -111,92 +66,117 @@ class VectorStore:
         format: Optional[str] = None,
         reading_status: Optional[str] = None,
     ) -> list[dict]:
-        """Search for books similar to the query."""
+        """Search for books similar to the query using pgvector."""
+        if os.environ.get("DISABLE_EMBEDDINGS") == "true":
+            return []
+
         embedding_service = get_embedding_service()
         query_embedding = embedding_service.embed_text(query)
 
-        # Build where filter
-        where_filter = None
-        conditions = []
+        with Session(engine) as session:
+            # Build the query with cosine distance
+            # pgvector uses <=> for cosine distance
+            stmt = (
+                select(
+                    Book,
+                    Book.embedding.cosine_distance(query_embedding).label("distance")
+                )
+                .where(Book.embedding.isnot(None))
+            )
 
-        if category:
-            conditions.append({"categories": {"$contains": category}})
-        if mood:
-            conditions.append({"moods": {"$contains": mood}})
-        if format:
-            conditions.append({"format": format})
-        if reading_status:
-            conditions.append({"reading_status": reading_status})
+            # Apply filters
+            if format:
+                stmt = stmt.where(Book.format == format)
+            if reading_status:
+                stmt = stmt.where(Book.reading_status == reading_status)
 
-        if len(conditions) == 1:
-            where_filter = conditions[0]
-        elif len(conditions) > 1:
-            where_filter = {"$and": conditions}
+            # Order by distance and limit
+            stmt = stmt.order_by("distance").limit(n_results * 2)  # Get extra for filtering
 
-        # Search
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            where=where_filter,
-            include=["metadatas", "documents", "distances"],
-        )
+            results = session.exec(stmt).all()
 
-        # Format results
-        formatted = []
-        if results["ids"] and results["ids"][0]:
-            for i, book_id in enumerate(results["ids"][0]):
-                metadata = results["metadatas"][0][i] if results["metadatas"] else {}
-                distance = results["distances"][0][i] if results["distances"] else 0
-                document = results["documents"][0][i] if results["documents"] else ""
+            # Format results and apply category/mood filters
+            formatted = []
+            for book, distance in results:
+                # Filter by category if specified
+                if category:
+                    book_categories = [c.category for c in book.categories]
+                    if category not in book_categories:
+                        continue
+
+                # Filter by mood if specified
+                if mood:
+                    book_moods = [m.mood for m in book.moods]
+                    if mood not in book_moods:
+                        continue
 
                 formatted.append(
                     {
-                        "id": int(book_id),
-                        "title": metadata.get("title", ""),
-                        "author": metadata.get("author", ""),
-                        "format": metadata.get("format", ""),
-                        "reading_status": metadata.get("reading_status", ""),
-                        "categories": metadata.get("categories", "").split(",")
-                        if metadata.get("categories")
-                        else [],
-                        "moods": metadata.get("moods", "").split(",")
-                        if metadata.get("moods")
-                        else [],
+                        "id": book.id,
+                        "title": book.title,
+                        "author": book.author,
+                        "format": book.format,
+                        "reading_status": book.reading_status,
+                        "categories": [c.category for c in book.categories],
+                        "moods": [m.mood for m in book.moods],
                         "similarity": 1 - distance,  # Convert distance to similarity
-                        "document": document,
                     }
                 )
 
-        return formatted
+                if len(formatted) >= n_results:
+                    break
 
-    def get_all_book_ids(self) -> list[int]:
-        """Get all book IDs in the vector store."""
-        results = self.collection.get(include=[])
-        return [int(id) for id in results["ids"]]
+            return formatted
 
     def count(self) -> int:
-        """Get the number of books in the vector store."""
-        return self.collection.count()
+        """Get the number of books with embeddings."""
+        with Session(engine) as session:
+            result = session.exec(
+                select(func.count()).select_from(Book).where(Book.embedding.isnot(None))
+            ).one()
+            return result
 
-    def sync_from_database(self, books: list) -> int:
-        """
-        Sync the vector store with books from the database.
-        Returns the number of books added.
-        """
-        import logging
-        logger = logging.getLogger(__name__)
+    def get_all_book_ids(self) -> list[int]:
+        """Get all book IDs that have embeddings."""
+        with Session(engine) as session:
+            results = session.exec(
+                select(Book.id).where(Book.embedding.isnot(None))
+            ).all()
+            return list(results)
 
-        existing_ids = set(self.get_all_book_ids())
+    def sync_from_database(self, session: Session) -> int:
+        """
+        Generate embeddings for all books that don't have them.
+        Returns the number of books updated.
+        """
+        if os.environ.get("DISABLE_EMBEDDINGS") == "true":
+            logger.info("Embeddings disabled, skipping sync")
+            return 0
+
+        # Get books without embeddings
+        books = session.exec(
+            select(Book).where(Book.embedding.is_(None))
+        ).unique().all()
+
+        if not books:
+            return 0
+
         added_count = 0
-
         for book in books:
-            if book.id not in existing_ids:
-                try:
-                    categories = [c.category for c in book.categories]
-                    moods = [m.mood for m in book.moods]
-                    self.add_book(book, categories, moods)
-                    added_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to sync book {book.id}: {e}")
+            try:
+                categories = [c.category for c in book.categories]
+                moods = [m.mood for m in book.moods]
+                embedding = self.add_book(book, categories, moods)
+                book.embedding = embedding
+                added_count += 1
 
+                # Commit in batches of 50
+                if added_count % 50 == 0:
+                    session.commit()
+                    logger.info(f"Synced {added_count} books...")
+
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding for book {book.id}: {e}")
+
+        session.commit()
         return added_count

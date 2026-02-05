@@ -1,5 +1,5 @@
 import logging
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, text
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,16 @@ engine = create_engine(
 
 
 def create_db_and_tables():
+    # Enable pgvector extension if using PostgreSQL
+    if db_url.startswith("postgresql"):
+        with Session(engine) as session:
+            try:
+                session.exec(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                session.commit()
+                logger.info("pgvector extension enabled")
+            except Exception as e:
+                logger.warning(f"Could not enable pgvector extension: {e}")
+
     SQLModel.metadata.create_all(engine)
 
 

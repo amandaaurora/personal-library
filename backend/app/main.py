@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def sync_vector_store():
-    """Sync the vector store with books from the database."""
+    """Sync embeddings for books that don't have them (pgvector)."""
     if os.environ.get("DISABLE_EMBEDDINGS") == "true":
         logger.info("Embeddings disabled, skipping vector store sync")
         return
@@ -27,28 +27,31 @@ def sync_vector_store():
     try:
         from .services.vector_store import VectorStore
         from .models.book import Book
+        from sqlalchemy import func
 
         vector_store = VectorStore()
-        vector_count = vector_store.count()
 
-        # Get all books from database
+        # Count books with and without embeddings
         with Session(engine) as session:
-            books = session.exec(select(Book)).unique().all()
-            db_count = len(books)
+            total_books = session.exec(
+                select(func.count()).select_from(Book)
+            ).one()
+            books_with_embeddings = session.exec(
+                select(func.count()).select_from(Book).where(Book.embedding.isnot(None))
+            ).one()
 
-        logger.info(f"Vector store has {vector_count} books, database has {db_count} books")
+        logger.info(f"Books with embeddings: {books_with_embeddings}/{total_books}")
 
-        if vector_count < db_count:
-            logger.info("Syncing vector store from database...")
+        if books_with_embeddings < total_books:
+            logger.info("Generating embeddings for books without them...")
             with Session(engine) as session:
-                books = session.exec(select(Book)).unique().all()
-                added = vector_store.sync_from_database(books)
-            logger.info(f"Added {added} books to vector store")
+                added = vector_store.sync_from_database(session)
+            logger.info(f"Generated embeddings for {added} books")
         else:
-            logger.info("Vector store is in sync with database")
+            logger.info("All books have embeddings")
 
     except Exception as e:
-        logger.warning(f"Failed to sync vector store: {e}")
+        logger.warning(f"Failed to sync vector store: {e}", exc_info=True)
 
 
 @asynccontextmanager
