@@ -7,6 +7,7 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
 
 from ..database import get_session
 
@@ -76,7 +77,10 @@ def list_books(
     search: Optional[str] = None,
 ):
     """List books with optional filters."""
-    query = select(Book)
+    query = select(Book).options(
+        selectinload(Book.categories),
+        selectinload(Book.moods)
+    )
 
     if category:
         query = query.join(BookCategory).where(BookCategory.category == category)
