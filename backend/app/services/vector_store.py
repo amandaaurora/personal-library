@@ -173,3 +173,30 @@ class VectorStore:
         """Get all book IDs in the vector store."""
         results = self.collection.get(include=[])
         return [int(id) for id in results["ids"]]
+
+    def count(self) -> int:
+        """Get the number of books in the vector store."""
+        return self.collection.count()
+
+    def sync_from_database(self, books: list) -> int:
+        """
+        Sync the vector store with books from the database.
+        Returns the number of books added.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        existing_ids = set(self.get_all_book_ids())
+        added_count = 0
+
+        for book in books:
+            if book.id not in existing_ids:
+                try:
+                    categories = [c.category for c in book.categories]
+                    moods = [m.mood for m in book.moods]
+                    self.add_book(book, categories, moods)
+                    added_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to sync book {book.id}: {e}")
+
+        return added_count
