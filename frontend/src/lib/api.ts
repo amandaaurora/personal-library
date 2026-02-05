@@ -8,6 +8,7 @@ import type {
   ImportResult,
   BookFilters,
   DuplicatesResponse,
+  RecategorizeResult,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -107,6 +108,20 @@ export async function categorizeBook(id: number): Promise<Book> {
   return fetchApi<Book>(`/books/${id}/categorize`, {
     method: 'POST',
   });
+}
+
+export async function bulkRecategorizeBooks(ids: number[]): Promise<Book[]> {
+  // Recategorize books one by one (to respect rate limits)
+  const results: Book[] = [];
+  for (const id of ids) {
+    try {
+      const book = await categorizeBook(id);
+      results.push(book);
+    } catch (error) {
+      console.error(`Failed to recategorize book ${id}:`, error);
+    }
+  }
+  return results;
 }
 
 // Search

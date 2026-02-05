@@ -99,6 +99,12 @@ class OpenLibraryService:
             results = []
 
             for doc in data.get("docs", []):
+                # Extract first sentence if available
+                first_sentence = None
+                if doc.get("first_sentence"):
+                    sentences = doc["first_sentence"]
+                    first_sentence = sentences[0] if isinstance(sentences, list) else sentences
+
                 result = {
                     "title": doc.get("title", "Unknown"),
                     "author": ", ".join(doc.get("author_name", ["Unknown"])),
@@ -107,6 +113,7 @@ class OpenLibraryService:
                     if doc.get("cover_i")
                     else None,
                     "first_publish_year": doc.get("first_publish_year"),
+                    "first_sentence": first_sentence,
                 }
                 results.append(result)
 

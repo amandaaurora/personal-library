@@ -114,3 +114,10 @@ export interface DuplicatesResponse {
   duplicate_groups: DuplicateGroup[];
   total_duplicates: number;
 }
+
+export interface RecategorizeResult {
+  total: number;
+  updated: number;
+  failed: number;
+  skipped: number;
+}

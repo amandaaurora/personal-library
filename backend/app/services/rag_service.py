@@ -90,8 +90,20 @@ Guidelines:
 - Explain why each recommendation fits their request
 - If the query is about mood or genre, focus on those aspects
 - Keep responses focused and helpful
-- If no books are a great match, be honest about it
-- Reference specific book titles and authors"""
+- Reference specific book titles and authors
+- USE YOUR KNOWLEDGE of books to make recommendations. Even if a book's metadata doesn't explicitly list a genre/mood, use what you know about the book to make connections.
+
+Genre Knowledge (use this to identify books even without explicit tags):
+- Cozy mysteries: Often feature amateur sleuths, small-town settings, minimal violence. Examples: books by Richard Osman (Thursday Murder Club), Jesse Q Sutanto, Nita Prose, Alexander McCall Smith
+- Cozy books in general: Heartwarming, low-stakes, often feature food, crafts, or community
+- Thrillers vs mysteries: Thrillers focus on tension/suspense, mysteries focus on puzzle-solving
+
+When matching queries:
+- "cozy mystery" = look for amateur detectives, gentle humor, community settings
+- "thriller" = high stakes, fast pace, danger
+- "literary fiction" = character-driven, prose-focused
+
+If the retrieved books include well-known titles, USE YOUR KNOWLEDGE of those books to assess whether they match the query, even if the stored metadata is incomplete."""
 
         user_message = f"""Query: {query}
 

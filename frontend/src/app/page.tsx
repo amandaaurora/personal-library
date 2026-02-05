@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { getBooks, bulkUpdateBooks, bulkDeleteBooks } from '@/lib/api';
+import { getBooks, bulkUpdateBooks, bulkDeleteBooks, bulkRecategorizeBooks } from '@/lib/api';
 import {
   BookOpen,
   Star,
@@ -14,6 +14,7 @@ import {
   X,
   Trash2,
   Search,
+  Wand2,
 } from 'lucide-react';
 import type { Book } from '@/lib/types';
 
@@ -146,7 +147,7 @@ function BookCard({ book, isSelected, onToggleSelect }: BookCardProps) {
           </p>
 
           {/* Tags */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={`badge text-xs ${status.badgeClass}`}>{status.label}</span>
             {book.rating && (
               <span className="flex items-center text-xs" style={{ color: '#1a1a1a' }}>
@@ -155,6 +156,22 @@ function BookCard({ book, isSelected, onToggleSelect }: BookCardProps) {
               </span>
             )}
           </div>
+
+          {/* Moods */}
+          {book.moods.length > 0 && (
+            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+              {book.moods.slice(0, 2).map((mood) => (
+                <span key={mood} className="badge badge-mood text-xs">
+                  {mood}
+                </span>
+              ))}
+              {book.moods.length > 2 && (
+                <span className="text-xs" style={{ color: '#999' }}>
+                  +{book.moods.length - 2}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </Link>
     </div>
@@ -347,10 +364,12 @@ interface BulkActionsBarProps {
   onClearSelection: () => void;
   onMarkAs: (status: string) => void;
   onDelete: () => void;
+  onRecategorize: () => void;
   isLoading: boolean;
+  isRecategorizing: boolean;
 }
 
-function BulkActionsBar({ selectedCount, onClearSelection, onMarkAs, onDelete, isLoading }: BulkActionsBarProps) {
+function BulkActionsBar({ selectedCount, onClearSelection, onMarkAs, onDelete, onRecategorize, isLoading, isRecategorizing }: BulkActionsBarProps) {
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
       <div className="card flex items-center gap-3 px-4 py-3 shadow-lg" style={{ boxShadow: '4px 4px 0 #1a1a1a' }}>
@@ -360,29 +379,43 @@ function BulkActionsBar({ selectedCount, onClearSelection, onMarkAs, onDelete, i
         <div className="w-px h-6 bg-gray-300" />
         <button
           onClick={() => onMarkAs('completed')}
-          disabled={isLoading}
+          disabled={isLoading || isRecategorizing}
           className="btn text-xs py-1.5 px-3"
         >
           Mark Completed
         </button>
         <button
           onClick={() => onMarkAs('reading')}
-          disabled={isLoading}
+          disabled={isLoading || isRecategorizing}
           className="btn text-xs py-1.5 px-3"
         >
           Mark Reading
         </button>
         <button
           onClick={() => onMarkAs('unread')}
-          disabled={isLoading}
+          disabled={isLoading || isRecategorizing}
           className="btn text-xs py-1.5 px-3"
         >
           Mark To Read
         </button>
         <div className="w-px h-6 bg-gray-300" />
         <button
+          onClick={onRecategorize}
+          disabled={isLoading || isRecategorizing}
+          className="btn text-xs py-1.5 px-3"
+          title="Re-categorize with AI"
+        >
+          {isRecategorizing ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : (
+            <Wand2 className="h-3 w-3 mr-1" />
+          )}
+          {isRecategorizing ? 'Categorizing...' : 'AI Categorize'}
+        </button>
+        <div className="w-px h-6 bg-gray-300" />
+        <button
           onClick={onDelete}
-          disabled={isLoading}
+          disabled={isLoading || isRecategorizing}
           className="btn btn-danger text-xs py-1.5 px-3"
         >
           <Trash2 className="h-3 w-3 mr-1" />
@@ -432,6 +465,14 @@ export default function HomePage() {
     },
   });
 
+  const bulkRecategorizeMutation = useMutation({
+    mutationFn: (ids: number[]) => bulkRecategorizeBooks(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+      setSelectedIds(new Set());
+    },
+  });
+
   // Extract unique categories and moods from all books
   const allCategories = Array.from(new Set(books.flatMap((b) => b.categories))).sort();
   const allMoods = Array.from(new Set(books.flatMap((b) => b.moods))).sort();
@@ -444,8 +485,15 @@ export default function HomePage() {
       normalizeText(book.title).includes(searchNormalized) ||
       normalizeText(book.author).includes(searchNormalized) ||
       (book.isbn && normalizeText(book.isbn).includes(searchNormalized));
-    const matchesCategory = !categoryFilter || book.categories.includes(categoryFilter);
-    const matchesMood = !moodFilter || book.moods.includes(moodFilter);
+
+    // Handle special "uncategorized" filter
+    const matchesCategory = !categoryFilter ||
+      (categoryFilter === '__uncategorized__' ? book.categories.length === 0 : book.categories.includes(categoryFilter));
+
+    // Handle special "no mood" filter
+    const matchesMood = !moodFilter ||
+      (moodFilter === '__no_mood__' ? book.moods.length === 0 : book.moods.includes(moodFilter));
+
     return matchesStatus && matchesSearch && matchesCategory && matchesMood;
   });
 
@@ -500,6 +548,12 @@ export default function HomePage() {
     }
   };
 
+  const handleBulkRecategorize = () => {
+    if (confirm(`Re-categorize ${selectedIds.size} book(s) with AI? This will update their categories and moods.`)) {
+      bulkRecategorizeMutation.mutate(Array.from(selectedIds));
+    }
+  };
+
   if (isLoading) {
     return <DashboardSkeleton />;
   }
@@ -509,6 +563,7 @@ export default function HomePage() {
   }
 
   const isActionLoading = bulkUpdateMutation.isPending || bulkDeleteMutation.isPending;
+  const isRecategorizing = bulkRecategorizeMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -621,36 +676,34 @@ export default function HomePage() {
             </div>
 
             {/* Category filter */}
-            {allCategories.length > 0 && (
-              <select
-                className="input py-1.5 text-sm w-auto"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                <option value="">All Categories</option>
-                {allCategories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            )}
+            <select
+              className="input py-1.5 text-sm w-auto"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="">All Categories</option>
+              <option value="__uncategorized__">Uncategorized</option>
+              {allCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
 
             {/* Mood filter */}
-            {allMoods.length > 0 && (
-              <select
-                className="input py-1.5 text-sm w-auto"
-                value={moodFilter}
-                onChange={(e) => setMoodFilter(e.target.value)}
-              >
-                <option value="">All Moods</option>
-                {allMoods.map((mood) => (
-                  <option key={mood} value={mood}>
-                    {mood}
-                  </option>
-                ))}
-              </select>
-            )}
+            <select
+              className="input py-1.5 text-sm w-auto"
+              value={moodFilter}
+              onChange={(e) => setMoodFilter(e.target.value)}
+            >
+              <option value="">All Moods</option>
+              <option value="__no_mood__">No mood</option>
+              {allMoods.map((mood) => (
+                <option key={mood} value={mood}>
+                  {mood}
+                </option>
+              ))}
+            </select>
 
             {/* View toggle */}
             <div className="flex items-center border rounded-lg overflow-hidden" style={{ borderColor: '#1a1a1a' }}>
@@ -720,7 +773,9 @@ export default function HomePage() {
           onClearSelection={() => setSelectedIds(new Set())}
           onMarkAs={handleBulkMarkAs}
           onDelete={handleBulkDelete}
+          onRecategorize={handleBulkRecategorize}
           isLoading={isActionLoading}
+          isRecategorizing={isRecategorizing}
         />
       )}
     </div>

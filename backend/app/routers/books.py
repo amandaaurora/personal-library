@@ -327,17 +327,45 @@ def update_book(
 
 
 @router.post("/{book_id}/categorize", response_model=BookRead)
-async def categorize_book(book_id: int, session: Session = Depends(get_session)):
-    """Auto-categorize a book using AI."""
+async def categorize_book(
+    book_id: int,
+    session: Session = Depends(get_session),
+    fetch_description: bool = Query(True, description="Fetch description from Open Library if missing"),
+):
+    """Auto-categorize a book using AI. Optionally fetches description from Open Library."""
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
 
     logger.info(f"Categorizing book '{book.title}' via API...")
     try:
+        description = book.description or ""
+
+        # Fetch description from Open Library if missing
+        if fetch_description and not description:
+            logger.info(f"Fetching description from Open Library for '{book.title}'...")
+            try:
+                openlibrary = OpenLibraryService()
+                if book.isbn:
+                    metadata = await openlibrary.fetch_book_metadata(book.isbn)
+                    if metadata and metadata.description:
+                        description = metadata.description
+                        book.description = description
+                        logger.info(f"Found description via ISBN for '{book.title}'")
+
+                # If no description from ISBN, try searching by title/author
+                if not description:
+                    results = await openlibrary.search_books(f"{book.title} {book.author}", limit=1)
+                    if results and results[0].get("first_sentence"):
+                        description = results[0]["first_sentence"]
+                        book.description = description
+                        logger.info(f"Found description via search for '{book.title}'")
+            except Exception as e:
+                logger.warning(f"Failed to fetch description for '{book.title}': {e}")
+
         categorization = CategorizationService()
         suggestions = await categorization.categorize_book(
-            book.title, book.author, book.description or ""
+            book.title, book.author, description
         )
         categories = suggestions.get("categories", [])
         moods = suggestions.get("moods", [])
@@ -382,6 +410,116 @@ async def categorize_book(book_id: int, session: Session = Depends(get_session))
     except Exception as e:
         logger.error(f"Categorization failed for book {book_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Categorization failed: {str(e)}")
+
+
+class RecategorizeResponse(BaseModel):
+    """Response from batch recategorization."""
+    total: int
+    updated: int
+    failed: int
+    skipped: int
+
+
+@router.post("/recategorize", response_model=RecategorizeResponse)
+async def recategorize_all_books(
+    session: Session = Depends(get_session),
+    force: bool = Query(False, description="Re-categorize even books that already have categories/moods"),
+    limit: int = Query(100, ge=1, le=500, description="Max books to process (to avoid timeout)"),
+):
+    """
+    Batch re-categorize books using improved AI categorization.
+
+    By default, only processes books missing categories OR moods.
+    Use force=true to re-categorize all books.
+
+    This endpoint is rate-limited by the Groq API free tier.
+    Process in batches of 50-100 to avoid timeouts.
+    """
+    query = select(Book).options(
+        selectinload(Book.categories),
+        selectinload(Book.moods)
+    )
+
+    if not force:
+        # Only get books missing categories or moods
+        query = query.outerjoin(BookCategory).outerjoin(BookMood).where(
+            (BookCategory.id.is_(None)) | (BookMood.id.is_(None))
+        )
+
+    query = query.limit(limit)
+    books = session.exec(query).unique().all()
+
+    total = len(books)
+    updated = 0
+    failed = 0
+    skipped = 0
+
+    categorization = CategorizationService()
+    vector_store = VectorStore()
+
+    for book in books:
+        try:
+            # Skip if already has both categories and moods (unless force)
+            if not force and book.categories and book.moods:
+                skipped += 1
+                continue
+
+            logger.info(f"Re-categorizing book '{book.title}'...")
+            suggestions = await categorization.categorize_book(
+                book.title, book.author, book.description or ""
+            )
+            categories = suggestions.get("categories", [])
+            moods = suggestions.get("moods", [])
+
+            if not categories and not moods:
+                logger.warning(f"No categories/moods returned for '{book.title}'")
+                failed += 1
+                continue
+
+            # Delete existing categories and moods
+            for cat in book.categories:
+                session.delete(cat)
+            for mood in book.moods:
+                session.delete(mood)
+
+            # Add new categories
+            for cat in categories:
+                book_cat = BookCategory(book_id=book.id, category=cat)
+                session.add(book_cat)
+
+            # Add new moods
+            for mood in moods:
+                book_mood = BookMood(book_id=book.id, mood=mood)
+                session.add(book_mood)
+
+            book.updated_at = datetime.utcnow()
+
+            # Update embedding with new categories/moods
+            try:
+                embedding = vector_store.update_book(book, categories, moods)
+                book.embedding = embedding
+            except Exception:
+                logger.warning(f"Failed to update embedding for book {book.id}", exc_info=True)
+
+            updated += 1
+
+            # Commit every 10 books to avoid losing progress
+            if updated % 10 == 0:
+                session.commit()
+                logger.info(f"Progress: {updated}/{total} books updated")
+
+        except Exception as e:
+            logger.error(f"Failed to re-categorize book {book.id}: {e}", exc_info=True)
+            failed += 1
+
+    session.commit()
+
+    return RecategorizeResponse(
+        total=total,
+        updated=updated,
+        failed=failed,
+        skipped=skipped
+    )
 
 
 @router.delete("/{book_id}", status_code=204)
